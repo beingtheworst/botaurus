@@ -3,8 +3,6 @@
             [ring.util.http-response :refer :all]
             [schema.core :as s]
             [sv3.schema :refer :all]
-
-
             ))
 
 
@@ -16,7 +14,6 @@
     :tags [{:name "hello", :description "says hello in Finnish"}]})
   (context "/query" []
            :tags ["query"]
-           
            
            
            (GET "/products" []

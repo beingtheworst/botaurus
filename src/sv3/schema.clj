@@ -1,9 +1,9 @@
 (ns sv3.schema
   (:require
    [schema.core :as s]
+   [clojure.core :refer [count]]
    [compojure.api.sweet :refer :all]
    [clojure.string :refer [blank?]]
-
    ))
 
 
@@ -14,7 +14,30 @@
   
 (def NonEmptyString (describe (s/both s/Str (s/pred (complement blank?))) "Non-empty string"))
 
-(s/defschema Code NonEmptyString)
+
+
+(defn string-fits?
+  [s min-length max-length]
+  (let [l (.length s)]
+    (and
+     (< l max-length)
+     (> l min-length))))
+
+(defn Text
+  "Use with one argument to create schema with max length constraints
+  with two arguments to create schema with min length contrain"
+  ([min-length max-length]
+   (describe
+    (s/both s/Str (s/pred #(string-fits? % min-length max-length)))
+    (str "String that is " min-length " to " max-length " chars long"))
+   )
+  ([length]
+   (describe
+    (s/both s/Str (s/pred #(string-fits? % 1 length)))
+    (str "Non-empty string (max length " length ")"))))
+
+
+(s/defschema Code (Text 1 40))
 (s/defschema Url NonEmptyString)
 (s/defschema Currency "Currency type" (s/enum :EUR :USD :RUB :GBP))
 (s/defschema Money (describe (s/pair s/Num "amount" Currency "currency") "Monetary value with currency" ) )
@@ -26,20 +49,20 @@
 (s/defschema ProductInfo
   {
    :sku Code
-   :title s/Str
 
+   (s/optional-key :title) (Text 200)
    (s/optional-key :attributes) ProductAttributes 
    (s/optional-key :classificationId)  s/Int
    (s/optional-key :brandId) s/Int
    (s/optional-key :supplierId) s/Int
-   (s/optional-key :note) s/Str
-   (s/optional-key :shortDescription) s/Str
-   (s/optional-key :longDescription) s/Str
+   (s/optional-key :note) (Text 8000)
+   (s/optional-key :shortDescription) (Text 1000)
+   (s/optional-key :longDescription) (Text 4000)
    (s/optional-key :pictures) [Url]
    (s/optional-key :cost) Money
    (s/optional-key :salePrice) Money
    (s/optional-key :retailPrice) Money
-   (s/optional-key :minOrderQuantity) [(s/one s/Num "quantity") (s/optional s/Str "note")]
+   (s/optional-key :minOrderQuantity) [(s/one s/Num "quantity") (s/optional (Text 4000) "note")]
    (s/optional-key :incrementalQuantuty) s/Num
    })
 
@@ -47,32 +70,100 @@
 
 (s/defschema ContactInfo
   {
-   (s/optional-key :first-name) s/Str
-   (s/optional-key :last-name) s/Str
-
-   (s/optional-key :company) s/Str
-   (s/optional-key :phone) s/Str
-   (s/optional-key :email) s/Str
+   (s/optional-key :first-name) (Text 100)
+   (s/optional-key :last-name) (Text 100)
+   (s/optional-key :company) (Text 100)
+   (s/optional-key :phone) (Text 50)
+   (s/optional-key :email) (Text 200)
    })
 
 (s/defschema ShippingAddress
   {
-   (s/optional-key :postal-code) s/Str
-   (s/optional-key :country) Country
-   (s/optional-key :region) s/Str
-   (s/optional-key :city) s/Str
-   (s/optional-key :address) [s/Str]
+   :postal-code (Text 10)
+   :country Country
+   (s/optional-key :region) (Text 50)
+   :city (Text 50)
+   :address [(Text 200)]
    })
-(s/defschema ShippingMethod (s/pair s/Str "Carrier" s/Str "Class"))
+(s/defschema ShippingMethod (s/pair (Text 50) "Carrier" (Text 50) "Class"))
 
+(s/defschema ItemPromotion
+  {
+   :code Code
+   :item-discount Money
+   :shipping-discount Money
+   })
+
+(s/defschema ItemCharges
+  {
+   })
+
+
+(s/defschema GiftWrap
+  {
+   :cost Money
+   :tax-cost Money
+   :message (Text 1000)
+   :level (Text 100)
+   })
+(s/defschema SaleItem
+  {
+   :sku Code
+   :quantity s/Num
+   :unit-price Money
+   :promotions [ItemPromotion]
+   :fulfilment Code
+
+   ;; charges
+   :shipping-cost Money
+   :shipping-tax-cost Money
+   :tax Money
+   :vat-rate Money
+   ;; sale source info
+   :item-sale-source Code
+   :sale-source-id Code
+   :buyer-user-id Code
+   :buyer-feedback-rating Code
+
+   :gift-wrap GiftWrap
+   })
+
+
+
+(s/defschema SalePromotion
+  {
+   :code Code
+   :order-discount Money
+   :shipping-discount Money
+   })
+
+(s/defschema SaleChargeType (s/enum :shipping :shipping-insurance :sales-tax :gift-wrap :recycling-fee :vat-shipping :vat-gift-wrap))
+(s/defschema SaleCharge
+  {
+   :type SaleChargeType 
+   :amount Money
+   })
+(s/defschema SaleCart
+  {
+   :items [SaleItem]
+   :checkout-source s/Str
+   :promotions [SalePromotion]
+   :charges [SaleCharge]
+   })
 
 (s/defschema SaleInfo
   {
    :address ShippingAddress
    :method ShippingMethod
-   (s/optional-key :contact) ContactInfo
+   :contact ContactInfo
+   
+   :clientSaleId s/Str
+   :sellerSaleId s/Str
+
+
+   
    (s/optional-key :notes) [s/Str]
-                       })
+   })
 
 
 
